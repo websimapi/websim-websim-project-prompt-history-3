@@ -10,6 +10,8 @@ const analysisContainer = document.getElementById('analysis-container');
 const guidancePromptInput = document.getElementById('guidance-prompt');
 
 let promptsForAnalysis = [];
+let urlReferences = [];
+let originalMasterPrompt = '';
 
 fetchButton.addEventListener('click', async () => {
     const url = urlInput.value.trim();
@@ -95,23 +97,29 @@ Do not include any preamble or explanation of what you are doing. Respond ONLY w
         });
 
         const generatedPrompt = completion.content;
-        
-        // Remove markdown code block fences that the LLM might add
-        const cleanedPrompt = generatedPrompt.replace(/^```[a-z]*\s*\n?/, '').replace(/\n?```$/, '').trim();
+        originalMasterPrompt = generatedPrompt.replace(/^```[a-z]*\s*\n?/, '').replace(/\n?```$/, '').trim();
 
         analysisContainer.innerHTML = `
             <div class="analysis-header">
                 <h3>Generated Master Prompt</h3>
                 <button id="copy-prompt-button">Copy</button>
             </div>
+             <div id="url-controls" style="display: none;">
+                <strong>Toggle URLs:</strong>
+                <div id="url-toggles"></div>
+                <button id="toggle-all-urls">Toggle All</button>
+            </div>
             <p>This prompt is a synthesis of the project's entire history. You can use it to try and recreate a similar project.</p>
             <div class="prompt-text"></div>
         `;
-        analysisContainer.querySelector('.prompt-text').textContent = cleanedPrompt;
+        
+        setupUrlToggles();
+        updatePromptDisplay();
 
         const copyButton = document.getElementById('copy-prompt-button');
         copyButton.addEventListener('click', () => {
-            navigator.clipboard.writeText(cleanedPrompt).then(() => {
+            const textToCopy = analysisContainer.querySelector('.prompt-text').textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
                 copyButton.textContent = 'Copied!';
                 copyButton.classList.add('copied');
                 setTimeout(() => {
@@ -138,6 +146,75 @@ Do not include any preamble or explanation of what you are doing. Respond ONLY w
         analyzeButton.disabled = false;
     }
 });
+
+function setupUrlToggles() {
+    const urlRegex = /(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&//=]*))/g;
+    const urls = [...new Set(originalMasterPrompt.match(urlRegex) || [])];
+    
+    const urlControls = document.getElementById('url-controls');
+    const urlTogglesContainer = document.getElementById('url-toggles');
+    const toggleAllBtn = document.getElementById('toggle-all-urls');
+
+    urlTogglesContainer.innerHTML = '';
+    urlReferences = [];
+    if (toggleAllBtn._handler) {
+        toggleAllBtn.removeEventListener('click', toggleAllBtn._handler);
+        delete toggleAllBtn._handler;
+    }
+
+    if (urls.length > 0) {
+        urlControls.style.display = 'flex';
+
+        urls.forEach((url, index) => {
+            const ref = { id: index, url: url, toggledOn: true };
+            urlReferences.push(ref);
+
+            const icon = document.createElement('span');
+            icon.className = 'url-toggle-icon';
+            icon.textContent = `URL ${index + 1}`;
+            icon.title = url;
+            icon.dataset.urlId = index;
+
+            icon.addEventListener('click', () => {
+                ref.toggledOn = !ref.toggledOn;
+                icon.classList.toggle('toggled-off', !ref.toggledOn);
+                updatePromptDisplay();
+            });
+            urlTogglesContainer.appendChild(icon);
+        });
+
+        toggleAllBtn._handler = () => {
+            const isAnyOff = urlReferences.some(ref => !ref.toggledOn);
+            urlReferences.forEach(ref => {
+                ref.toggledOn = isAnyOff;
+            });
+            
+            document.querySelectorAll('.url-toggle-icon').forEach(icon => {
+                const ref = urlReferences.find(r => r.id === parseInt(icon.dataset.urlId));
+                icon.classList.toggle('toggled-off', !ref.toggledOn);
+            });
+            updatePromptDisplay();
+        };
+        toggleAllBtn.addEventListener('click', toggleAllBtn._handler);
+    } else {
+        urlControls.style.display = 'none';
+    }
+}
+
+function updatePromptDisplay() {
+    const promptContainer = analysisContainer.querySelector('.prompt-text');
+    if (!promptContainer) return;
+
+    let textToShow = originalMasterPrompt;
+    urlReferences.forEach(ref => {
+        if (!ref.toggledOn) {
+            const regex = new RegExp(ref.url.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
+            textToShow = textToShow.replace(regex, `[URL ${ref.id + 1} HIDDEN]`);
+        }
+    });
+
+    promptContainer.textContent = textToShow;
+}
 
 async function resolveProjectId(input) {
     input = input.trim();
