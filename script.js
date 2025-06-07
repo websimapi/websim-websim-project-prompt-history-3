@@ -89,12 +89,36 @@ Do not include any preamble or explanation of what you are doing. Respond ONLY w
 
         const generatedPrompt = completion.content;
         
+        // Remove markdown code block fences that the LLM might add
+        const cleanedPrompt = generatedPrompt.replace(/^```[a-z]*\s*\n?/, '').replace(/\n?```$/, '').trim();
+
         analysisContainer.innerHTML = `
-            <h3>Generated Master Prompt</h3>
+            <div class="analysis-header">
+                <h3>Generated Master Prompt</h3>
+                <button id="copy-prompt-button">Copy</button>
+            </div>
             <p>This prompt is a synthesis of the project's entire history. You can use it to try and recreate a similar project.</p>
             <div class="prompt-text"></div>
         `;
-        analysisContainer.querySelector('.prompt-text').textContent = generatedPrompt;
+        analysisContainer.querySelector('.prompt-text').textContent = cleanedPrompt;
+
+        const copyButton = document.getElementById('copy-prompt-button');
+        copyButton.addEventListener('click', () => {
+            navigator.clipboard.writeText(cleanedPrompt).then(() => {
+                copyButton.textContent = 'Copied!';
+                copyButton.classList.add('copied');
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                    copyButton.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+                copyButton.textContent = 'Failed!';
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                }, 2000);
+            });
+        });
 
     } catch (err) {
         console.error('LLM analysis failed:', err);

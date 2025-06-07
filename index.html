@@ -106,6 +106,33 @@
             margin-bottom: 20px;
         }
 
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #copy-prompt-button {
+            padding: 6px 12px;
+            font-size: 14px;
+            color: #fff;
+            background-color: #3498db;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #copy-prompt-button:hover:not(.copied) {
+            background-color: #2980b9;
+        }
+        
+        #copy-prompt-button.copied {
+            background-color: #2ecc71;
+            cursor: default;
+        }
+
         #analyze-button {
             display: block;
             width: 100%;
@@ -141,6 +168,7 @@
 
         #analysis-container h3 {
             color: #2c3e50;
+            margin: 0;
         }
         
         #analysis-container .prompt-text {
