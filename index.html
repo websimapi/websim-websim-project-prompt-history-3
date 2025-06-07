@@ -237,12 +237,110 @@
         #toggle-all-urls:hover {
             background-color: #8e44ad;
         }
+
+        #project-feed-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .feed-container {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        .scroll-arrow {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.3s;
+            line-height: 28px;
+            text-align: center;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .scroll-arrow:hover {
+            background-color: #2980b9;
+        }
+        #scroll-left {
+            margin-right: 8px;
+        }
+        #scroll-right {
+            margin-left: 8px;
+        }
+        .feed-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            padding: 10px 5px;
+            flex-grow: 1;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .feed-scroll::-webkit-scrollbar {
+            display: none;
+        }
+        .project-feed-item {
+            flex-shrink: 0;
+            width: 150px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .project-feed-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+        .project-feed-item img {
+            width: 100%;
+            height: 85px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #ecf0f1;
+            margin-bottom: 8px;
+        }
+        .project-feed-item p {
+            margin: 0;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #333;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Project Prompt History</h1>
         <p>Enter a Websim project ID, URL, or user/slug (e.g., @user/project-name) to fetch its prompt history.</p>
+        
+        <div id="project-feed-section" style="display: none;">
+            <h2 style="margin-top: 10px; margin-bottom: 10px; font-size: 1.1em; border-bottom: none;">My Recent Projects</h2>
+            <div class="feed-container">
+                <button id="scroll-left" class="scroll-arrow">&lt;</button>
+                <div id="project-feed" class="feed-scroll">
+                    <!-- Projects will be loaded here -->
+                </div>
+                <button id="scroll-right" class="scroll-arrow">&gt;</button>
+            </div>
+        </div>
         
         <div id="error-container"></div>
         

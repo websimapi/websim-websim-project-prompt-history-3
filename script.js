@@ -9,9 +9,118 @@ const analysisLoader = document.getElementById('analysis-loader');
 const analysisContainer = document.getElementById('analysis-container');
 const guidancePromptInput = document.getElementById('guidance-prompt');
 
+// Project Feed elements
+const projectFeedSection = document.getElementById('project-feed-section');
+const projectFeed = document.getElementById('project-feed');
+const scrollLeftBtn = document.getElementById('scroll-left');
+const scrollRightBtn = document.getElementById('scroll-right');
+
 let promptsForAnalysis = [];
 let urlReferences = [];
 let originalMasterPrompt = '';
+
+// Project Feed state
+let currentUser = null;
+let projectFeedCursor = null;
+let projectFeedHasNextPage = true;
+let isFetchingProjects = false;
+
+async function initialize() {
+    try {
+        currentUser = await websim.getUser();
+        if (currentUser && currentUser.username) {
+            projectFeedSection.style.display = 'block';
+            await fetchUserProjects(currentUser.username);
+            setupFeedEventListeners();
+        }
+    } catch (err) {
+        console.error("Could not fetch current user or their projects:", err);
+        projectFeedSection.style.display = 'none';
+    }
+}
+
+async function fetchUserProjects(username) {
+    if (isFetchingProjects || !projectFeedHasNextPage) return;
+    isFetchingProjects = true;
+    
+    const apiUrl = `/api/v1/users/${username}/projects?first=10&sort_by=created_at${projectFeedCursor ? `&after=${projectFeedCursor}` : ''}`;
+    
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch user projects. Status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (data.projects && data.projects.data.length > 0) {
+            renderProjectsToFeed(data.projects.data);
+            projectFeedCursor = data.projects.meta.end_cursor;
+            projectFeedHasNextPage = data.projects.meta.has_next_page;
+        } else {
+            projectFeedHasNextPage = false;
+            if (!projectFeed.hasChildNodes()){
+                 projectFeed.innerHTML = `<p style="color: #7f8c8d;">No projects found.</p>`;
+            }
+        }
+        
+    } catch (err) {
+        console.error(err.message);
+    } finally {
+        isFetchingProjects = false;
+    }
+}
+
+function renderProjectsToFeed(projects) {
+    const fragment = document.createDocumentFragment();
+    projects.forEach(item => {
+        const { project, project_revision } = item;
+        if (!project) return;
+        
+        const feedItem = document.createElement('div');
+        feedItem.className = 'project-feed-item';
+        feedItem.dataset.projectId = project.id;
+        feedItem.title = `${project.title || 'Untitled Project'}\nClick to load history`;
+
+        const img = document.createElement('img');
+        img.src = project_revision?.current_screenshot_url || `https://source.unsplash.com/random/150x85?sig=${project.id}&technology,abstract`;
+        img.alt = project.title || 'Project thumbnail';
+        
+        const title = document.createElement('p');
+        title.textContent = project.title || 'Untitled Project';
+        
+        feedItem.appendChild(img);
+        feedItem.appendChild(title);
+        
+        feedItem.addEventListener('click', () => {
+            urlInput.value = project.id;
+            fetchButton.click();
+            urlInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        
+        fragment.appendChild(feedItem);
+    });
+    projectFeed.appendChild(fragment);
+}
+
+function setupFeedEventListeners() {
+    scrollLeftBtn.addEventListener('click', () => {
+        projectFeed.scrollBy({ left: -220, behavior: 'smooth' });
+    });
+    
+    scrollRightBtn.addEventListener('click', () => {
+        projectFeed.scrollBy({ left: 220, behavior: 'smooth' });
+    });
+    
+    projectFeed.addEventListener('scroll', async () => {
+        if (!currentUser) return;
+        const { scrollLeft, scrollWidth, clientWidth } = projectFeed;
+        if (scrollLeft + clientWidth >= scrollWidth - 250) { 
+            if (projectFeedHasNextPage && !isFetchingProjects) {
+                await fetchUserProjects(currentUser.username);
+            }
+        }
+    });
+}
 
 fetchButton.addEventListener('click', async () => {
     const url = urlInput.value.trim();
@@ -409,3 +518,6 @@ function clearUI() {
     analysisContainer.innerHTML = '';
     analyzeSection.style.display = 'none';
 }
+
+// Initialize the page
+initialize();
