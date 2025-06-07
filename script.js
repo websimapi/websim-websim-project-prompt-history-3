@@ -15,12 +15,6 @@ const projectFeed = document.getElementById('project-feed');
 const scrollLeftBtn = document.getElementById('scroll-left');
 const scrollRightBtn = document.getElementById('scroll-right');
 
-// New search elements
-let projectSearchInput;
-let projectFeedTitle;
-let userSearchToggleLabel;
-let userSearchToggle;
-
 let promptsForAnalysis = [];
 let urlReferences = [];
 let originalMasterPrompt = '';
@@ -31,19 +25,6 @@ let projectFeedCursor = null;
 let projectFeedHasNextPage = true;
 let isFetchingProjects = false;
 
-// New search state
-let searchOffset = 0;
-const searchLimit = 10;
-let isFetchingSearchResults = false;
-let currentSearchQuery = '';
-let hasMoreSearchResults = true;
-let debounceTimeout;
-
-// New state for user project search
-let userSearchCursor = null;
-let hasMoreUserSearchResults = true;
-let isFetchingUserSearchResults = false;
-
 async function initialize() {
     try {
         currentUser = await websim.getUser();
@@ -51,21 +32,6 @@ async function initialize() {
             projectFeedSection.style.display = 'block';
             await fetchUserProjects(currentUser.username);
             setupFeedEventListeners();
-
-            // Setup search
-            projectSearchInput = document.getElementById('project-search-input');
-            projectFeedTitle = document.getElementById('project-feed-title');
-            userSearchToggleLabel = document.getElementById('user-search-toggle-label');
-            userSearchToggle = document.getElementById('user-search-toggle');
-
-            userSearchToggleLabel.style.display = 'flex';
-            
-            userSearchToggle.addEventListener('change', () => {
-                projectSearchInput.placeholder = userSearchToggle.checked ? "Search my projects..." : "Search all projects...";
-                handleSearchInput();
-            });
-
-            projectSearchInput.addEventListener('input', handleSearchInput);
         }
     } catch (err) {
         console.error("Could not fetch current user or their projects:", err);
@@ -136,115 +102,6 @@ function renderProjectsToFeed(projects) {
     projectFeed.appendChild(fragment);
 }
 
-async function searchUserProjects(username, query) {
-    if (isFetchingUserSearchResults || !hasMoreUserSearchResults) return;
-    isFetchingUserSearchResults = true;
-
-    const apiUrl = `/api/v1/users/${username}/projects?first=10&sort_by=created_at&query=${encodeURIComponent(query)}${userSearchCursor ? `&after=${userSearchCursor}` : ''}`;
-    
-    try {
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to search user projects. Status: ${response.status}`);
-        }
-        const data = await response.json();
-        
-        if (data.projects && data.projects.data.length > 0) {
-            renderProjectsToFeed(data.projects.data);
-            userSearchCursor = data.projects.meta.end_cursor;
-            hasMoreUserSearchResults = data.projects.meta.has_next_page;
-        } else {
-            hasMoreUserSearchResults = false;
-            if (!projectFeed.hasChildNodes()){
-                 projectFeed.innerHTML = `<p style="color: #7f8c8d;">No projects found for "${query}" in your projects.</p>`;
-            }
-        }
-        
-    } catch (err) {
-        console.error(err.message);
-        if (!projectFeed.hasChildNodes()){
-            projectFeed.innerHTML = `<p style="color: #e74c3c;">Error searching your projects.</p>`;
-        }
-    } finally {
-        isFetchingUserSearchResults = false;
-    }
-}
-
-function handleSearchInput() {
-    clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(async () => {
-        const query = projectSearchInput.value.trim();
-        const searchMyProjects = userSearchToggle && userSearchToggle.checked;
-        
-        projectFeed.innerHTML = ''; // Clear feed for new content
-
-        if (query) {
-            currentSearchQuery = query;
-            projectFeedTitle.textContent = `Search Results`;
-
-            if (searchMyProjects && currentUser) {
-                // Reset user project search pagination
-                userSearchCursor = null;
-                hasMoreUserSearchResults = true;
-                isFetchingUserSearchResults = false;
-                await searchUserProjects(currentUser.username, query);
-            } else {
-                 // Reset global search pagination
-                searchOffset = 0;
-                hasMoreSearchResults = true;
-                isFetchingSearchResults = false;
-                await searchProjects(query);
-            }
-        } else {
-            currentSearchQuery = '';
-            projectFeedTitle.textContent = 'My Recent Projects';
-            // Reset user project pagination
-            projectFeedCursor = null;
-            projectFeedHasNextPage = true;
-            isFetchingProjects = false;
-            if(currentUser && currentUser.username) {
-                await fetchUserProjects(currentUser.username);
-            }
-        }
-    }, 300);
-}
-
-async function searchProjects(query) {
-    if (isFetchingSearchResults || !hasMoreSearchResults) return;
-    isFetchingSearchResults = true;
-    
-    const apiUrl = `/api/v1/feed/search/newest/${encodeURIComponent(query)}?limit=${searchLimit}&offset=${searchOffset}`;
-    
-    try {
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to search projects. Status: ${response.status}`);
-        }
-        const data = await response.json();
-        
-        if (data.feed && data.feed.data.length > 0) {
-            renderProjectsToFeed(data.feed.data);
-            searchOffset += data.feed.data.length;
-            if (data.feed.data.length < searchLimit) {
-                hasMoreSearchResults = false;
-            }
-        } else {
-            hasMoreSearchResults = false;
-            if (searchOffset === 0){
-                 projectFeed.innerHTML = `<p style="color: #7f8c8d;">No projects found for "${query}".</p>`;
-            }
-        }
-        
-    } catch (err) {
-        console.error(err.message);
-        if (searchOffset === 0){
-            projectFeed.innerHTML = `<p style="color: #e74c3c;">Error searching projects.</p>`;
-        }
-    } finally {
-        isFetchingSearchResults = false;
-    }
-}
-
 function setupFeedEventListeners() {
     scrollLeftBtn.addEventListener('click', () => {
         projectFeed.scrollBy({ left: -220, behavior: 'smooth' });
@@ -255,16 +112,10 @@ function setupFeedEventListeners() {
     });
     
     projectFeed.addEventListener('scroll', async () => {
+        if (!currentUser) return;
         const { scrollLeft, scrollWidth, clientWidth } = projectFeed;
         if (scrollLeft + clientWidth >= scrollWidth - 250) { 
-            const searchMyProjects = userSearchToggle && userSearchToggle.checked;
-            if (currentSearchQuery) {
-                if (searchMyProjects && currentUser) {
-                    await searchUserProjects(currentUser.username, currentSearchQuery);
-                } else {
-                    await searchProjects(currentSearchQuery);
-                }
-            } else if (currentUser) {
+            if (projectFeedHasNextPage && !isFetchingProjects) {
                 await fetchUserProjects(currentUser.username);
             }
         }
