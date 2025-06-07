@@ -180,15 +180,25 @@ analyzeButton.addEventListener('click', async () => {
 
     const formattedPrompts = promptsForAnalysis.map(p => {
         let prefix = p.source === 'parent' ? `Parent V${p.version}` : `V${p.version}`;
-        return `${prefix} (${p.type}):\n${p.text}`;
-    }).join('\n\n---\n\n');
+        return `---
+Prompt from ${prefix} (${p.type}):
+${p.text}
 
-    let systemPrompt = `You are an expert prompt engineer. You will be given a sequence of prompts that were used to build a web application. This sequence may include prompts from a parent project and a forked project. Your task is to analyze this entire history and synthesize it into a single, comprehensive, and detailed prompt that could be used to create the final version of the project from scratch.
+Resulting Code from ${prefix}:
+\`\`\`html
+${p.html || '<!-- HTML content not available -->'}
+\`\`\`
+---`;
+    }).join('\n\n');
+
+    let systemPrompt = `You are an expert prompt engineer. You will be given a sequence of prompts and their resulting HTML code that were used to build a web application. This sequence may include prompts and code from a parent project and a forked project. Your task is to analyze this entire history (both prompts and code) and synthesize it into a single, comprehensive, and detailed master prompt that could be used to create the final version of the project from scratch.
+
+When analyzing the code, pay attention to the structure, styling (CSS), and behavior (JavaScript). The code is the ground truth of what was built. The prompts are the instructions that led to that code. Your final master prompt should describe how to build the *final* state of the application.
 
 The final prompt should be:
-- **Comprehensive:** It should include all features, functionality, styling, and layout mentioned in the prompt history.
-- **Well-structured:** Use headings, bullet points, or other formatting to make the prompt easy to read and understand.
-- **Coherent:** Combine related ideas and resolve contradictions or iterative changes into a final, consistent instruction.
+- **Comprehensive:** It should include all features, functionality, styling, and layout from the final version of the code, informed by the prompts that created it.
+- **Well-structured:** Use markdown headings, bullet points, and code blocks to make the prompt easy to read and understand.
+- **Coherent:** Combine related ideas and resolve iterative changes into a final, consistent set of instructions. For example, if a prompt says "make the button blue" and a later one says "make the button green", the final prompt should just say to make the button green. The code will reflect the final state.
 - **Actionable:** The output should be a single block of text that a generative AI could use to build the web page.
 
 Do not include any preamble or explanation of what you are doing. Respond ONLY with the final, synthesized prompt.`;
@@ -404,7 +414,26 @@ async function fetchAllRevisions(projectId) {
         cursor = data.revisions.meta.end_cursor;
     }
 
-    return allRevisions;
+    const revisionsWithContent = await Promise.all(
+        allRevisions.map(async (rev) => {
+            if (rev.site && rev.site.prompt && rev.site.prompt.text) {
+                try {
+                    const htmlResponse = await fetch(`/api/v1/projects/${projectId}/revisions/${rev.project_revision.version}/html`);
+                    if (htmlResponse.ok) {
+                        const html = await htmlResponse.text();
+                        return { ...rev, html };
+                    }
+                    return { ...rev, html: `<!-- Failed to load HTML. Status: ${htmlResponse.status} -->` };
+                } catch (e) {
+                    console.error(`Failed to fetch HTML for revision ${rev.project_revision.version}`, e);
+                    return { ...rev, html: '<!-- Could not load HTML for this revision due to a network error. -->' };
+                }
+            }
+            return rev;
+        })
+    );
+
+    return revisionsWithContent;
 }
 
 function renderRevisionList(revisions, container) {
@@ -473,7 +502,8 @@ function renderHistory(revisions, parentRevisions, parentProject, project) {
                 source: 'parent',
                 version: item.project_revision.version,
                 type: item.site.prompt.type,
-                text: item.site.prompt.text
+                text: item.site.prompt.text,
+                html: item.html
             }));
         promptsForAnalysis.push(...parentPrompts);
     }
@@ -495,7 +525,8 @@ function renderHistory(revisions, parentRevisions, parentProject, project) {
             source: 'current',
             version: item.project_revision.version,
             type: item.site.prompt.type,
-            text: item.site.prompt.text
+            text: item.site.prompt.text,
+            html: item.html
         }));
     promptsForAnalysis.push(...projectPrompts);
 
