@@ -7,6 +7,7 @@ const analyzeSection = document.getElementById('analysis-section');
 const analyzeButton = document.getElementById('analyze-button');
 const analysisLoader = document.getElementById('analysis-loader');
 const analysisContainer = document.getElementById('analysis-container');
+const guidancePromptInput = document.getElementById('guidance-prompt');
 
 let promptsForAnalysis = [];
 
@@ -64,12 +65,14 @@ analyzeButton.addEventListener('click', async () => {
     analysisContainer.innerHTML = '';
     analyzeButton.disabled = true;
 
+    const guidanceText = guidancePromptInput.value.trim();
+
     const formattedPrompts = promptsForAnalysis.map(p => {
         let prefix = p.source === 'parent' ? `Parent V${p.version}` : `V${p.version}`;
         return `${prefix} (${p.type}):\n${p.text}`;
     }).join('\n\n---\n\n');
 
-    const systemPrompt = `You are an expert prompt engineer. You will be given a sequence of prompts that were used to build a web application. This sequence may include prompts from a parent project and a forked project. Your task is to analyze this entire history and synthesize it into a single, comprehensive, and detailed prompt that could be used to create the final version of the project from scratch.
+    let systemPrompt = `You are an expert prompt engineer. You will be given a sequence of prompts that were used to build a web application. This sequence may include prompts from a parent project and a forked project. Your task is to analyze this entire history and synthesize it into a single, comprehensive, and detailed prompt that could be used to create the final version of the project from scratch.
 
 The final prompt should be:
 - **Comprehensive:** It should include all features, functionality, styling, and layout mentioned in the prompt history.
@@ -78,6 +81,10 @@ The final prompt should be:
 - **Actionable:** The output should be a single block of text that a generative AI could use to build the web page.
 
 Do not include any preamble or explanation of what you are doing. Respond ONLY with the final, synthesized prompt.`;
+
+    if (guidanceText) {
+        systemPrompt += `\n\n---\n\n**User Guidance:** A user has provided additional instructions. You MUST follow these instructions and incorporate them into your final generated prompt. The user's instructions are:\n\n"${guidanceText}"`;
+    }
 
     try {
         const completion = await websim.chat.completions.create({

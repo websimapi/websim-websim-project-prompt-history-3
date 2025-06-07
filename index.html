@@ -198,6 +198,10 @@
         <div id="loader">Loading...</div>
         
         <div id="analysis-section" style="display: none;">
+             <div style="margin-bottom: 15px;">
+                <label for="guidance-prompt" style="display: block; margin-bottom: 5px; font-weight: bold; color: #34495e;">Guidance Prompt (Optional)</label>
+                <textarea id="guidance-prompt" rows="4" placeholder="Add extra instructions for the AI, e.g., 'Make the final design use a dark theme', 'Focus on the core game logic', etc." style="width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 15px; font-family: inherit; resize: vertical;"></textarea>
+             </div>
              <button id="analyze-button">Analyze History & Generate Master Prompt</button>
              <div id="analysis-loader" style="display: none;">Analyzing... this might take a moment.</div>
              <div id="analysis-container">
